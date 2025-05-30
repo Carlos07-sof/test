@@ -252,8 +252,66 @@ class ProductRepositoryImpl(): ProductRepository {
 
 }
 
+–---------------------------------------
+using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
+
+[ApiController]
+[Route("api/webhook/whatsapp")] // Esta es la ruta del endpoint
+public class WebhookController : ControllerBase
+{
+    // 👉 Este es tu endpoint POST para recibir mensajes de WhatsApp
+    [HttpPost]
+    public async Task<IActionResult> Receive([FromBody] JsonElement payload)
+    {
+        try
+        {
+            var entry = payload.GetProperty("entry")[0];
+            var change = entry.GetProperty("changes")[0];
+            var value = change.GetProperty("value");
+
+            var contacts = value.GetProperty("contacts")[0];
+            var waId = contacts.GetProperty("wa_id").GetString();
+            var name = contacts.GetProperty("profile").GetProperty("name").GetString();
+
+            var messages = value.GetProperty("messages")[0];
+            var messageText = messages.GetProperty("text").GetProperty("body").GetString();
+
+            Console.WriteLine($"📩 Mensaje de {name} ({waId}): {messageText}");
+
+            return Ok();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error al procesar webhook: {ex.Message}");
+            return BadRequest();
+        }
+    }
+
+    // 👉 Este es tu endpoint GET para la verificación de Meta
+    [HttpGet]
+    public IActionResult Verify([FromQuery(Name = "hub.mode")] string mode,
+                                [FromQuery(Name = "hub.challenge")] string challenge,
+                                [FromQuery(Name = "hub.verify_token")] string verifyToken)
+    {
+        const string myVerifyToken = "TOKEN_VERIFICACION"; // tu token personalizado
+
+        if (mode == "subscribe" && verifyToken == myVerifyToken)
+        {
+            return Ok(challenge);
+        }
+
+        return Forbid();
+    }
+}
 
 
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddControllers();
+var app = builder.Build();
 
+app.UseHttpsRedirection();
 
+app.MapControllers(); // 🔥 Esto activa todos los endpoints de los controladores
 
+app.Run();
